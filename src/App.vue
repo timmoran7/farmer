@@ -221,7 +221,7 @@ const loadGame = async () => {
 
     <!-- Footer -->
     <footer class="text-center mt-5 text-muted">
-      Contact: timthemoran@gmail.com
+      This page will generate a summary line for all batters and all pitchers, with pinch hitters being at the end of the batter list. Please remove as you see fit. Note: relievers are not in order of appearance.
     </footer>
   </div>
 </template>
