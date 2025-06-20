@@ -60,7 +60,15 @@ export interface PitchingResult {
   sort_order: string;
 }
 
-export interface BoxScores {
+export interface BoxScore {
   battingResults: BattingResult[];
   pitchingResults: PitchingResult[];
+}
+
+export interface ReportResult {
+  recordLine: string;
+  boxScore: BoxScore;
+  scoreLine: string;
+  level: number;
+  boxScoreLink: string;
 }
