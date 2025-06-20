@@ -374,8 +374,8 @@ const loadAllGames = async () => {
         <p>
           <em
             >Follow us on social media
-            <a href="x.com/soxon35th">@SoxOn35th</a> and
-            <a href="x.com/pipelineTo35th">@PipelineTo35th</a> for more White
+            <a href="https://x.com/soxon35th">@SoxOn35th</a> and
+            <a href="https://x.com/pipelineTo35th">@PipelineTo35th</a> for more White
             Sox news!</em
           >
         </p>
