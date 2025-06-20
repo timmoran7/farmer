@@ -342,8 +342,9 @@ const loadAllGames = async () => {
       </button>
     </div>
     <div v-if="isFullReport">
+      <p>PLACEHOLDER TOP PARAGRAPH TEXT</p>
       <div v-for="result in reportResults" class="mt-4">
-        <h3>{{ result.recordLine }}</h3>
+        <h2>{{ result.recordLine }}</h2>
         <ul>
           <li
             v-for="batter in result.boxScore.battingResults"
@@ -362,11 +363,23 @@ const loadAllGames = async () => {
           </li>
         </ul>
         <span
-          ><h3>{{ result.scoreLine }}</h3>
-          &nbsp;<a :href="result.boxScoreLink" target="_blank"
-            ><h3>Box Score</h3></a
+          ><strong>{{ result.scoreLine }}</strong> &nbsp;<a
+            :href="result.boxScoreLink"
+            target="_blank"
+            ><strong>Box Score</strong></a
           ></span
         >
+      </div>
+      <div class="report-bottom">
+        <p>
+          <em
+            >Follow us on social media
+            <a href="x.com/soxon35th">@SoxOn35th</a> and
+            <a href="x.com/pipelineTo35th">@PipelineTo35th</a> for more White
+            Sox news!</em
+          >
+        </p>
+        <p><em>Featured image: </em></p>
       </div>
     </div>
     <div class="mt-4" v-else>
@@ -388,9 +401,9 @@ const loadAllGames = async () => {
       Generate Box Score: Generates a summary line for all batters and all
       pitchers, with pinch hitters being at the end of the batter list. Please
       remove lines as you see fit. Note: relievers are not in order of
-      appearance.<br><br>Generate Full Report: Generates a full day's report with box
-      scores in the format noted above, may need to copy/paste in chunks to get
-      Wordpress to recognize the different sections.
+      appearance.<br /><br />Generate Full Report: Generates a full day's report
+      with box scores in the format noted above, may need to copy/paste in
+      chunks to get Wordpress to recognize the different sections.
     </footer>
   </div>
 </template>
@@ -407,6 +420,10 @@ body {
   display: flex;
   justify-content: center;
   margin-bottom: 15px;
+}
+
+.report-bottom {
+  margin-top: 20px;
 }
 
 span {
