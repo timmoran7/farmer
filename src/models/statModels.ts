@@ -71,4 +71,5 @@ export interface ReportResult {
   scoreLine: string;
   level: number;
   boxScoreLink: string;
+  day: number;
 }

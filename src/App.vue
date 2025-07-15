@@ -33,27 +33,46 @@ const validSoxTeamSlugs = [
   "dsl-white-sox",
 ];
 
-const getMostRecentCompletedDate = () => {
+const formatDate = (date: Date): string => {
+  const year = date.getFullYear();
+  // Months are 0-indexed, so we add 1 and pad with a '0' if needed.
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getTwoMostRecentCompletedDates = (): string[] => {
+  
   const now = new Date();
 
-  // Convert to US Central Time (America/Chicago)
+  // Convert to US Central Time (America/Chicago). Note: Parsing a localized
+  // string can be fragile in some JS environments, but is a common approach.
   const centralNow = new Date(
     now.toLocaleString("en-US", { timeZone: "America/Chicago" })
   );
 
   const cutoffHour = 18; // 6 PM
 
-  const targetDate = new Date(centralNow);
+  // This will become our most recent completed date.
+  const mostRecentCompletedDate = new Date(centralNow);
+
   if (centralNow.getHours() < cutoffHour) {
-    // Before 6 PM — use yesterday
-    targetDate.setDate(targetDate.getDate() - 1);
+    // Before 6 PM — the most recent completed day is yesterday.
+    mostRecentCompletedDate.setDate(mostRecentCompletedDate.getDate() - 1);
   }
 
-  const year = targetDate.getFullYear();
-  const month = String(targetDate.getMonth() + 1).padStart(2, "0"); // Months are 0-based
-  const day = String(targetDate.getDate()).padStart(2, "0");
+  // The second most recent is simply one day before the most recent.
+  const secondMostRecentCompletedDate = new Date(mostRecentCompletedDate);
+  secondMostRecentCompletedDate.setDate(
+    secondMostRecentCompletedDate.getDate() - 1
+  );
 
-  return `${year}-${month}-${day}`;
+  // Format both dates and return them in an array.
+  return [
+    formatDate(mostRecentCompletedDate),
+    formatDate(secondMostRecentCompletedDate),
+  ];
 };
 
 const convertGameUrlToApiUri = (
@@ -77,71 +96,86 @@ const convertGameUrlToApiUri = (
   throw new Error("Invalid game URL format");
 };
 
-const extractFullReport = async () => {
-  const mostRecentDateString = getMostRecentCompletedDate();
-  const mostRecentSlashDate = mostRecentDateString.replace(/-/g, "/");
+const extractFullReport = async (isWeekend: boolean) => {
+  let mostRecentDateStrings = getTwoMostRecentCompletedDates();
+  if(!isWeekend){
+    mostRecentDateStrings.pop()
+  }
 
-  const allSoxBoxResponse = await fetch(
-    `https://bdfed.stitch.mlbinfra.com/bdfed/transform-milb-scoreboard?stitch_env=prod&sortTemplate=4&sportId=11&&sportId=12&&sportId=13&&sportId=14&&sportId=16&startDate=${mostRecentDateString}&endDate=${mostRecentDateString}&gameType=R&&gameType=F&&gameType=D&&gameType=L&&gameType=W&&gameType=A&&gameType=C&season=2025&language=en&leagueId=&contextTeamId=milb&teamId=580&&teamId=633&&teamId=247&&teamId=1997&&teamId=487&&teamId=494&orgId=145`
-  );
-  const allBoxData = await allSoxBoxResponse.json();
+  let day = 0;
+  mostRecentDateStrings = ["2025-07-13", "2025-07-12"]
+  for (const dateString of mostRecentDateStrings) {
+    const milbApiFetchUrl =  `https://bdfed.stitch.mlbinfra.com/bdfed/transform-milb-scoreboard?stitch_env=prod&sortTemplate=4&sportId=11&&sportId=12&&sportId=13&&sportId=14&&sportId=16&startDate=${dateString}&endDate=${dateString}&gameType=R&&gameType=F&&gameType=D&&gameType=L&&gameType=W&&gameType=A&&gameType=C&season=2025&language=en&leagueId=&contextTeamId=milb&teamId=580&&teamId=633&&teamId=247&&teamId=1997&&teamId=487&&teamId=494&orgId=145`;
+    const daySoxBoxResponse = await fetch(milbApiFetchUrl
+    );
+    const dayBoxData = await daySoxBoxResponse.json();
 
-  for (const game of allBoxData?.dates[0]?.games || []) {
-    const isCancelled = game.status.codedGameState === "C";
-    if (isCancelled) {
-      continue;
+    for (const game of dayBoxData?.dates[0]?.games || []) {
+      const isCancelled = game.status.codedGameState === "C";
+      if (isCancelled) {
+        continue;
+      }
+
+      const gameId = game.gamePk;
+      const awayTeam = game.teams.away;
+      const homeTeam = game.teams.home;
+
+      const [awayName, awayFullName, awayLevel, awayRecord, awayScore] = [
+        awayTeam.team.teamName,
+        awayTeam.team.name,
+        awayTeam.team.sport.name,
+        awayTeam.leagueRecord,
+        awayTeam.score,
+      ];
+      const awayRecordString = `${awayRecord.wins}-${awayRecord.losses}`;
+
+      const [homeName, homeFullName, homeLevel, homeRecord, homeScore] = [
+        homeTeam.team.teamName,
+        homeTeam.team.name,
+        homeTeam.team.sport.name,
+        homeTeam.leagueRecord,
+        homeTeam.score,
+      ];
+      const homeRecordString = `${homeRecord.wins}-${homeRecord.losses}`;
+
+      const isHome = !Object.keys(validSoxTeams).includes(
+        awayName.toLowerCase()
+      );
+
+      const scoreLine = `FINAL: ${awayFullName} ${awayScore}, ${homeFullName} ${homeScore} |`;
+      let recordLine = isHome
+        ? `${homeLevel} ${homeFullName} (${homeRecordString})`
+        : `${awayLevel} ${awayFullName} (${awayRecordString})`;
+      if (recordLine.startsWith("Rookie ")) {
+        recordLine = recordLine.replace("Rookie ", "");
+      }
+      const level = isHome
+        ? validSoxTeams[homeName.toLowerCase()]
+        : validSoxTeams[awayName.toLowerCase()];
+
+      const slashDate = dateString.replace(/-/g, "/");
+      const apiUri = `https://ws.statsapi.mlb.com/api/v1.1/game/${gameId}/feed/live?language=en`;
+      const boxScoreLink = `https://www.milb.com/gameday/${awayName.toLowerCase().replaceAll(" ", "-")}-vs-${homeName.toLowerCase().replaceAll(" ", "-")}/${slashDate}/${gameId}/final/box`;
+
+      const boxScore = await fetchBoxScoreData("", apiUri, isHome);
+      const reportResult: ReportResult = {
+        recordLine,
+        boxScore,
+        scoreLine,
+        level,
+        boxScoreLink,
+        day,
+      };
+      reportResults.push(reportResult);
     }
-
-    const gameId = game.gamePk;
-    const awayTeam = game.teams.away;
-    const homeTeam = game.teams.home;
-
-    const [awayName, awayFullName, awayLevel, awayRecord, awayScore] = [
-      awayTeam.team.teamName,
-      awayTeam.team.name,
-      awayTeam.team.sport.name,
-      awayTeam.leagueRecord,
-      awayTeam.score,
-    ];
-    const awayRecordString = `${awayRecord.wins}-${awayRecord.losses}`;
-
-    const [homeName, homeFullName, homeLevel, homeRecord, homeScore] = [
-      homeTeam.team.teamName,
-      homeTeam.team.name,
-      homeTeam.team.sport.name,
-      homeTeam.leagueRecord,
-      homeTeam.score,
-    ];
-    const homeRecordString = `${homeRecord.wins}-${homeRecord.losses}`;
-
-    const isHome = !Object.keys(validSoxTeams).includes(awayName.toLowerCase());
-
-    const scoreLine = `FINAL: ${awayFullName} ${awayScore}, ${homeFullName} ${homeScore} |`;
-    let recordLine = isHome
-      ? `${homeLevel} ${homeFullName} (${homeRecordString})`
-      : `${awayLevel} ${awayFullName} (${awayRecordString})`;
-    if (recordLine.startsWith("Rookie ")) {
-      recordLine = recordLine.replace("Rookie ", "");
-    }
-    const level = isHome
-      ? validSoxTeams[homeName.toLowerCase()]
-      : validSoxTeams[awayName.toLowerCase()];
-
-    const apiUri = `https://ws.statsapi.mlb.com/api/v1.1/game/${gameId}/feed/live?language=en`;
-    const boxScoreLink = `https://www.milb.com/gameday/${awayName.toLowerCase().replaceAll(" ", "-")}-vs-${homeName.toLowerCase().replaceAll(" ", "-")}/${mostRecentSlashDate}/${gameId}/final/box`;
-
-    const boxScore = await fetchBoxScoreData("", apiUri, isHome);
-    const reportResult: ReportResult = {
-      recordLine,
-      boxScore,
-      scoreLine,
-      level,
-      boxScoreLink,
-    };
-    reportResults.push(reportResult);
+    day += 1;
   }
   reportResults.sort((a, b) => {
-    return a.level - b.level; // Sort by level first
+    const levelDifference = a.level - b.level;
+    if (levelDifference !== 0) {
+      return levelDifference;
+    }
+    return b.day - a.day;
   });
 };
 
@@ -310,8 +344,14 @@ const loadGame = async () => {
 };
 
 const loadAllGames = async () => {
-  await extractFullReport();
+  await extractFullReport(false);
   isFullReport.value = true;
+};
+
+const loadWeekendGames = async () => {
+  await extractFullReport(true);
+  isFullReport.value = true;
+  console.log(reportResults)
 };
 </script>
 
@@ -339,6 +379,15 @@ const loadAllGames = async () => {
         @click="loadAllGames"
       >
         Generate Full Report
+      </button>
+    </div>
+    <div class="text-center entry">
+      <button
+        type="button"
+        class="btn d-inline mx-3 weekend"
+        @click="loadWeekendGames"
+      >
+        Generate Full Weekend Report
       </button>
     </div>
     <div v-if="isFullReport">
@@ -375,8 +424,8 @@ const loadAllGames = async () => {
           <em
             >Follow us on social media
             <a href="https://x.com/soxon35th">@SoxOn35th</a> and
-            <a href="https://x.com/pipelineTo35th">@PipelineTo35th</a> for more White
-            Sox news!</em
+            <a href="https://x.com/pipelineTo35th">@PipelineTo35th</a> for more
+            White Sox news!</em
           >
         </p>
         <p><em>Featured image: </em></p>
@@ -437,5 +486,9 @@ a {
 
 footer {
   margin-bottom: 20px;
+}
+
+.weekend {
+  background-color: lightskyblue;
 }
 </style>
