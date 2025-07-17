@@ -8,6 +8,7 @@ import type {
   PitchingResult,
   ReportResult,
 } from "@/models/statModels.ts";
+import loader from "@/images/loader_icon.gif";
 
 const gameUrl = ref("");
 const battingAll = ref<BattingResult[]>([]);
@@ -15,6 +16,8 @@ const pitchingAll = ref<PitchingResult[]>([]);
 const reportResults = [] as ReportResult[];
 
 const isFullReport = ref(false);
+const isWeekendReport = ref(false);
+const isLoading = ref(false);
 
 const validSoxTeams: { [key: string]: number } = {
   knights: 1,
@@ -33,6 +36,12 @@ const validSoxTeamSlugs = [
   "dsl-white-sox",
 ];
 
+const resetResults = () => {
+  reportResults.splice(0);
+  isWeekendReport.value = false;
+  isFullReport.value = false;
+};
+
 const formatDate = (date: Date): string => {
   const year = date.getFullYear();
   // Months are 0-indexed, so we add 1 and pad with a '0' if needed.
@@ -43,7 +52,6 @@ const formatDate = (date: Date): string => {
 };
 
 const getTwoMostRecentCompletedDates = (): string[] => {
-  
   const now = new Date();
 
   // Convert to US Central Time (America/Chicago). Note: Parsing a localized
@@ -98,16 +106,16 @@ const convertGameUrlToApiUri = (
 
 const extractFullReport = async (isWeekend: boolean) => {
   let mostRecentDateStrings = getTwoMostRecentCompletedDates();
-  if(!isWeekend){
-    mostRecentDateStrings.pop()
+  if (!isWeekend) {
+    mostRecentDateStrings.pop();
   }
 
-  let day = 0;
-  mostRecentDateStrings = ["2025-07-13", "2025-07-12"]
+  let teamGameNum = 2;
+  mostRecentDateStrings = ["2025-07-10"];
   for (const dateString of mostRecentDateStrings) {
-    const milbApiFetchUrl =  `https://bdfed.stitch.mlbinfra.com/bdfed/transform-milb-scoreboard?stitch_env=prod&sortTemplate=4&sportId=11&&sportId=12&&sportId=13&&sportId=14&&sportId=16&startDate=${dateString}&endDate=${dateString}&gameType=R&&gameType=F&&gameType=D&&gameType=L&&gameType=W&&gameType=A&&gameType=C&season=2025&language=en&leagueId=&contextTeamId=milb&teamId=580&&teamId=633&&teamId=247&&teamId=1997&&teamId=487&&teamId=494&orgId=145`;
-    const daySoxBoxResponse = await fetch(milbApiFetchUrl
-    );
+    teamGameNum -= 1;
+    const milbApiFetchUrl = `https://bdfed.stitch.mlbinfra.com/bdfed/transform-milb-scoreboard?stitch_env=prod&sortTemplate=4&sportId=11&&sportId=12&&sportId=13&&sportId=14&&sportId=16&startDate=${dateString}&endDate=${dateString}&gameType=R&&gameType=F&&gameType=D&&gameType=L&&gameType=W&&gameType=A&&gameType=C&season=2025&language=en&leagueId=&contextTeamId=milb&teamId=580&&teamId=633&&teamId=247&&teamId=1997&&teamId=487&&teamId=494&orgId=145`;
+    const daySoxBoxResponse = await fetch(milbApiFetchUrl);
     const dayBoxData = await daySoxBoxResponse.json();
 
     for (const game of dayBoxData?.dates[0]?.games || []) {
@@ -158,24 +166,33 @@ const extractFullReport = async (isWeekend: boolean) => {
       const boxScoreLink = `https://www.milb.com/gameday/${awayName.toLowerCase().replaceAll(" ", "-")}-vs-${homeName.toLowerCase().replaceAll(" ", "-")}/${slashDate}/${gameId}/final/box`;
 
       const boxScore = await fetchBoxScoreData("", apiUri, isHome);
+      const [year, month, day] = dateString.split("-").map(Number);
+      const timezoneAdjustedDate = new Date(year, month - 1, day);
+      const formattedDate = timezoneAdjustedDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      });
+
       const reportResult: ReportResult = {
         recordLine,
         boxScore,
         scoreLine,
         level,
         boxScoreLink,
-        day,
+        teamGameNum,
+        formattedDate,
+        nextDayRecordLine: "",
       };
       reportResults.push(reportResult);
     }
-    day += 1;
   }
   reportResults.sort((a, b) => {
     const levelDifference = a.level - b.level;
     if (levelDifference !== 0) {
       return levelDifference;
     }
-    return b.day - a.day;
+    return a.teamGameNum - b.teamGameNum;
   });
 };
 
@@ -333,25 +350,38 @@ const extractBoxScore = (
 };
 
 const loadGame = async () => {
+  resetResults();
   const { battingResults, pitchingResults } = await fetchBoxScoreData(
     gameUrl.value
   );
 
   battingAll.value = battingResults;
   pitchingAll.value = pitchingResults;
-
-  isFullReport.value = false;
 };
 
 const loadAllGames = async () => {
+  resetResults();
+  isLoading.value = true;
   await extractFullReport(false);
   isFullReport.value = true;
+  isLoading.value = false;
 };
 
 const loadWeekendGames = async () => {
+  resetResults();
+  isLoading.value = true;
   await extractFullReport(true);
-  isFullReport.value = true;
-  console.log(reportResults)
+  for (let i = 0; i < reportResults.length - 1; i++) {
+    let currGame = reportResults[i];
+    let nextGame = reportResults[i + 1];
+    if (currGame.level == nextGame.level) {
+      currGame.nextDayRecordLine = nextGame.recordLine;
+      nextGame.nextDayRecordLine = "n/a";
+    }
+  }
+  console.log(reportResults);
+  isWeekendReport.value = true;
+  isLoading.value = false;
 };
 </script>
 
@@ -390,10 +420,32 @@ const loadWeekendGames = async () => {
         Generate Full Weekend Report
       </button>
     </div>
-    <div v-if="isFullReport">
+    <div v-if="isLoading" class="text-center">
+      <img :src="loader" alt="Loader icon" class="text-center loader-gif" />
+    </div>
+    <div v-if="!isLoading && (isFullReport || isWeekendReport)">
       <p>PLACEHOLDER TOP PARAGRAPH TEXT</p>
       <div v-for="result in reportResults" class="mt-4">
-        <h2>{{ result.recordLine }}</h2>
+        <h2
+          v-if="
+            !isWeekendReport ||
+            (isWeekendReport && result.nextDayRecordLine.length < 1)
+          "
+        >
+          {{ result.recordLine }}
+        </h2>
+        <h2
+          v-if="
+            isWeekendReport &&
+            result.teamGameNum == 0 &&
+            result.nextDayRecordLine.length > 3
+          "
+        >
+          {{ result.nextDayRecordLine }}
+        </h2>
+        <p v-if="isWeekendReport">
+          <i>{{ result.formattedDate }}</i>
+        </p>
         <ul>
           <li
             v-for="batter in result.boxScore.battingResults"
@@ -446,13 +498,17 @@ const loadWeekendGames = async () => {
     </div>
 
     <!-- Footer -->
-    <footer class="text-center mt-5 text-muted">
-      Generate Box Score: Generates a summary line for all batters and all
-      pitchers, with pinch hitters being at the end of the batter list. Please
-      remove lines as you see fit. Note: relievers are not in order of
-      appearance.<br /><br />Generate Full Report: Generates a full day's report
-      with box scores in the format noted above, may need to copy/paste in
-      chunks to get Wordpress to recognize the different sections.
+    <footer v-if="!isLoading" class="text-center mt-5 text-muted">
+      <strong>Generate Box Score:</strong> Generates a summary line for all
+      batters and all pitchers, with pinch hitters being at the end of the
+      batter list. Please remove lines as you see fit. Note: relievers are not
+      in order of appearance.<br /><br /><strong>Generate Full Report:</strong>
+      Generates a full day's report with box scores in the format noted above,
+      may need to copy/paste in chunks to get Wordpress to recognize the
+      different sections.<br /><br />
+      <strong>Generate Weekend Report:</strong> Run this
+      <i>AFTER 6PM ON SUNDAY</i> and before 6pm on Monday to get the full
+      weekend report, same cautions apply as above
     </footer>
   </div>
 </template>
@@ -490,5 +546,11 @@ footer {
 
 .weekend {
   background-color: lightskyblue;
+}
+
+.loader-gif {
+  width: 150px;
+  /* justify-content: center;
+  align-items: center; */
 }
 </style>
