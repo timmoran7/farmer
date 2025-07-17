@@ -499,13 +499,12 @@ const loadWeekendGames = async () => {
 
     <!-- Footer -->
     <footer v-if="!isLoading" class="text-center mt-5 text-muted">
-      <strong>Generate Box Score:</strong> Generates a summary line for all
-      batters and all pitchers, with pinch hitters being at the end of the
-      batter list. Please remove lines as you see fit. Note: relievers are not
+      <strong>Generate Box Score:</strong> Generates box score for all
+      batters and pitchers. Pinch hitters are at the end of the
+      batter list. Remove lines as you see fit. Relievers are not
       in order of appearance.<br /><br /><strong>Generate Full Report:</strong>
-      Generates a full day's report with box scores in the format noted above,
-      may need to copy/paste in chunks to get Wordpress to recognize the
-      different sections.<br /><br />
+      Generates most recent day's full report (6pm is the cutoff) with box scores in the format noted above,
+      please add section dividers once in Wordpress.<br /><br />
       <strong>Generate Weekend Report:</strong> Run this
       <i>AFTER 6PM ON SUNDAY</i> and before 6pm on Monday to get the full
       weekend report, same cautions apply as above

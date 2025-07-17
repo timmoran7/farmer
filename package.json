@@ -11,7 +11,7 @@
     "type-check": "vue-tsc --build",
     "format": "prettier --write src/",
     "predeploy": "npm run build",
-    "deploy": "gh-pages-new -d dist -r git@github.com-timmoran7:timmoran7/farmer.git"
+    "deploy": "gh-pages -d dist -b gh-pages-new -r git@github.com-timmoran7:timmoran7/farmer.git"
   },
   "dependencies": {
     "bootstrap": "^5.3.3",
