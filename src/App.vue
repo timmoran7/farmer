@@ -19,6 +19,11 @@ const isFullReport = ref(false);
 const isWeekendReport = ref(false);
 const isLoading = ref(false);
 
+const rookieTeamSlugs = [
+  "dsl-white-sox",
+  "acl-white-sox",
+]
+
 const validSoxTeams: { [key: string]: number } = {
   knights: 1,
   barons: 2,
@@ -111,7 +116,7 @@ const extractFullReport = async (isWeekend: boolean) => {
   }
 
   let teamGameNum = 2;
-  mostRecentDateStrings = ["2025-07-10"];
+  mostRecentDateStrings = ["2025-07-13", "2025-07-12"];
   for (const dateString of mostRecentDateStrings) {
     teamGameNum -= 1;
     const milbApiFetchUrl = `https://bdfed.stitch.mlbinfra.com/bdfed/transform-milb-scoreboard?stitch_env=prod&sortTemplate=4&sportId=11&&sportId=12&&sportId=13&&sportId=14&&sportId=16&startDate=${dateString}&endDate=${dateString}&gameType=R&&gameType=F&&gameType=D&&gameType=L&&gameType=W&&gameType=A&&gameType=C&season=2025&language=en&leagueId=&contextTeamId=milb&teamId=580&&teamId=633&&teamId=247&&teamId=1997&&teamId=487&&teamId=494&orgId=145`;
@@ -458,7 +463,7 @@ const loadWeekendGames = async () => {
             :key="pitcher.name"
           >
             {{ pitcher.summary }}
-            <ul>
+            <ul v-if="result.level < 5">
               <li>{{ pitcher.output }}</li>
             </ul>
           </li>
@@ -491,7 +496,7 @@ const loadWeekendGames = async () => {
         <li v-for="pitcher in pitchingAll" :key="pitcher.name">
           {{ pitcher.summary }}
           <ul>
-            <li>{{ pitcher.output }}</li>
+            <li v-if="!gameUrl.includes('dsl') && !gameUrl.includes('acl')">{{ pitcher.output }}</li>
           </ul>
         </li>
       </ul>
